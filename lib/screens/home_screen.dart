@@ -1,8 +1,12 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/note_model.dart';
 import '../providers/notes_provider.dart';
+import '../theme/neo_brutalist_theme.dart';
+import '../widgets/dot_grid_painter.dart';
+import '../widgets/tactile_button.dart';
 import 'editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,23 +20,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _fabController;
   late Animation<double> _fabScale;
 
-  static const List<Color> cardColors = [
-    Color(0xFFFFF176),
-    Color(0xFF81C784),
-    Color(0xFFCE93D8),
-    Color(0xFFF48FB1),
-    Color(0xFF80DEEA),
-    Color(0xFFFFCC80),
-  ];
+  // Pre-generate rotation angles for cards to keep them stable across rebuilds.
+  final Map<String, double> _rotationAngles = {};
+  final math.Random _rng = math.Random();
 
-  static const Map<String, Color> colorMap = {
-    'yellow': Color(0xFFFFF176),
-    'green': Color(0xFF81C784),
-    'purple': Color(0xFFCE93D8),
-    'pink': Color(0xFFF48FB1),
-    'cyan': Color(0xFF80DEEA),
-    'orange': Color(0xFFFFCC80),
-  };
+  double _angleFor(String id, int index) {
+    return _rotationAngles.putIfAbsent(
+        id, () => (_rng.nextDouble() * 4 - 2) * (math.pi / 180));
+  }
 
   @override
   void initState() {
@@ -54,22 +49,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Color _getCardColor(Note note, int index) {
-    return colorMap[note.colorLabel] ?? cardColors[index % cardColors.length];
+    return NB.colorMap[note.colorLabel] ??
+        NB.cardColors[index % NB.cardColors.length];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFDE7),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(context),
-            _buildCategoryChips(context),
-            Expanded(child: _buildNotesGrid(context)),
-          ],
-        ),
+      backgroundColor: NB.canvas,
+      body: Stack(
+        children: [
+          // Micro-dot grid background
+          Positioned.fill(child: CustomPaint(painter: DotGridPainter())),
+          SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(context),
+                _buildCategoryChips(context),
+                Expanded(child: _buildNotesGrid(context)),
+              ],
+            ),
+          ),
+        ],
       ),
       floatingActionButton: ScaleTransition(
         scale: _fabScale,
@@ -77,6 +79,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
+
+  // ─── Header ──────────────────────────────────────────────────────────────
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
@@ -86,93 +90,97 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         children: [
           Row(
             children: [
+              // "IDEA BOARD" badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.black87, width: 1.5),
-                ),
-                child: const Row(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: NB.pillDecoration(color: NB.cardWhite),
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.auto_awesome, size: 16, color: Colors.amber),
-                    SizedBox(width: 6),
+                    const Icon(Icons.auto_awesome,
+                        size: 16, color: NB.buttercupYellow),
+                    const SizedBox(width: 6),
                     Text(
                       'IDEA BOARD',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
+                      style: NB.pillCaption().copyWith(
+                            letterSpacing: 1.2,
+                            fontSize: 12,
+                          ),
                     ),
                   ],
                 ),
               ),
               const Spacer(),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.search_rounded, size: 24),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  shape: const CircleBorder(
-                    side: BorderSide(color: Colors.black26),
-                  ),
+              // Search button
+              _buildHeaderIconButton(Icons.search_rounded),
+              const SizedBox(width: 8),
+              // Avatar
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: NB.skyBlue,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: NB.borderBlack, width: NB.strokeWidth),
                 ),
-              ),
-              const SizedBox(width: 4),
-              const CircleAvatar(
-                radius: 18,
-                backgroundColor: Color(0xFF4FC3F7),
-                child: Icon(Icons.person, size: 20, color: Colors.white),
+                child: const Icon(Icons.person, size: 20, color: Colors.white),
               ),
             ],
           ),
           const SizedBox(height: 18),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.amber.shade300),
-                ),
-                child: Text(
-                  '🧠 BRAIN PLAYGROUND',
-                  style: TextStyle(
+          // Brain Playground badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: NB.pillDecoration(
+              color: NB.buttercupYellow,
+              shadow: NB.shadowCompact,
+            ),
+            child: Text(
+              '✨ BRAIN PLAYGROUND',
+              style: NB.pillCaption().copyWith(
                     fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: Colors.brown.shade700,
+                    letterSpacing: 1.0,
+                    color: NB.textPrimary,
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'My Brain Dumps 🧃',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: Colors.black87,
-              height: 1.1,
             ),
           ),
+          const SizedBox(height: 10),
+          Text('My Brain Dumps 🧠', style: NB.display1()),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Sticky thoughts, wild ideas & scribbles',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.black54,
-              fontStyle: FontStyle.italic,
-            ),
+            style: NB.bodyRegular().copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: NB.textMuted,
+                ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildHeaderIconButton(IconData icon) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: NB.cardWhite,
+        shape: BoxShape.circle,
+        border: Border.all(color: NB.borderBlack, width: NB.strokeWidth),
+        boxShadow: const [
+          BoxShadow(
+              color: NB.borderBlack,
+              offset: Offset(2, 2),
+              blurRadius: 0),
+        ],
+      ),
+      child: Icon(icon, size: 20, color: NB.textPrimary),
+    );
+  }
+
+  // ─── Category Pills ──────────────────────────────────────────────────────
 
   Widget _buildCategoryChips(BuildContext context) {
     final provider = context.watch<NotesProvider>();
@@ -180,68 +188,67 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final noteCount = provider.notes.length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: allCategories.map((cat) {
             final isSelected = provider.selectedCategory == cat;
             return Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 10),
               child: GestureDetector(
                 onTap: () => provider.setCategory(cat),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  duration: const Duration(milliseconds: 200),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF2E7D32)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    color: isSelected ? NB.textPrimary : NB.cardWhite,
+                    borderRadius: BorderRadius.circular(NB.pillRadius),
                     border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF2E7D32)
-                          : Colors.black38,
-                      width: 1.5,
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
+                        color: NB.borderBlack, width: NB.strokeWidth),
+                    boxShadow: [
+                      BoxShadow(
+                        color: NB.borderBlack,
+                        offset: isSelected
+                            ? const Offset(1, 1)
+                            : const Offset(3, 3),
+                        blurRadius: 0,
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         cat,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: isSelected ? Colors.white : Colors.black87,
-                        ),
+                        style: NB.pillCaption().copyWith(
+                              fontSize: 13,
+                              color: isSelected
+                                  ? NB.cardWhite
+                                  : NB.textPrimary,
+                            ),
                       ),
                       if (cat == 'All') ...[
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.white.withValues(alpha: 0.3)
-                                : Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(10),
+                                ? Colors.white.withValues(alpha: 0.2)
+                                : NB.dim.withValues(alpha: 0.5),
+                            borderRadius:
+                                BorderRadius.circular(NB.pillRadius),
                           ),
                           child: Text(
                             '$noteCount',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: isSelected ? Colors.white : Colors.black54,
-                            ),
+                            style: NB.pillCaption().copyWith(
+                                  fontSize: 11,
+                                  color: isSelected
+                                      ? NB.cardWhite
+                                      : NB.textPrimary,
+                                ),
                           ),
                         ),
                       ],
@@ -256,87 +263,125 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // ─── Notes Grid ──────────────────────────────────────────────────────────
+
   Widget _buildNotesGrid(BuildContext context) {
     final provider = context.watch<NotesProvider>();
 
     if (provider.isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
+        child: CircularProgressIndicator(color: NB.hotOrange),
       );
     }
 
     final notes = provider.filteredNotes;
 
-    if (notes.isEmpty) {
-      return _buildEmptyState();
-    }
+    if (notes.isEmpty) return _buildEmptyState();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: GridView.builder(
         padding: const EdgeInsets.only(top: 8, bottom: 100),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.78,
+          mainAxisSpacing: 18,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.72,
         ),
         itemCount: notes.length,
-        itemBuilder: (context, index) {
-          return _buildNoteCard(notes[index], index);
-        },
+        itemBuilder: (context, index) =>
+            _buildNoteCard(notes[index], index),
       ),
     );
   }
 
+  // ─── Empty State ─────────────────────────────────────────────────────────
+
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: Colors.amber.shade100,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.amber.shade300, width: 2),
-            ),
-            child: const Center(
-              child: Text(
-                '📝',
-                style: TextStyle(fontSize: 48),
+      child: Transform.rotate(
+        angle: -3 * (math.pi / 180),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 130,
+              height: 130,
+              decoration: NB.cardDecoration(
+                color: NB.buttercupYellow,
+                radius: 24,
+                shadow: NB.shadowResting,
+              ),
+              child: const Center(
+                child: Text('📝✨', style: TextStyle(fontSize: 48)),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'No notes yet',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.black87,
+            const SizedBox(height: 24),
+            Text(
+              'Whoops! Your brain\nis empty',
+              textAlign: TextAlign.center,
+              style: NB.titleMedium().copyWith(fontSize: 22),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Tap + to create one!',
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.black45,
+            const SizedBox(height: 12),
+            TactileButton(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  _pageRoute(const EditorScreen()),
+                );
+              },
+              color: NB.hotOrange,
+              child: Text(
+                '✨  Spark an Idea',
+                style: NB.buttonLabel(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  // ─── Note Card ───────────────────────────────────────────────────────────
+
+  Widget _buildRichTextPreview(String text) {
+    final style = NB.bodyRegular().copyWith(color: NB.textPrimary.withValues(alpha: 0.7));
+    
+    // Very simple bold parser for **text**
+    final RegExp exp = RegExp(r'\*\*(.*?)\*\*');
+    final matches = exp.allMatches(text);
+    
+    if (matches.isEmpty) {
+      return Text(text, style: style, maxLines: 5, overflow: TextOverflow.ellipsis);
+    }
+    
+    List<TextSpan> spans = [];
+    int start = 0;
+    for (final match in matches) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: style.copyWith(fontWeight: FontWeight.bold, color: NB.textPrimary),
+      ));
+      start = match.end;
+    }
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start)));
+    }
+    
+    return RichText(
+      text: TextSpan(style: style, children: spans),
+      maxLines: 5,
+      overflow: TextOverflow.ellipsis,
     );
   }
 
   Widget _buildNoteCard(Note note, int index) {
     final cardColor = _getCardColor(note, index);
-    final isLight = ThemeData.estimateBrightnessForColor(cardColor) == Brightness.light;
-    final textColor = isLight ? Colors.black87 : Colors.white;
-    final subTextColor = isLight ? Colors.black54 : Colors.white70;
     final dateStr = DateFormat('MMM d').format(note.dateAdded);
+    final angle = _angleFor(note.id, index);
 
     return Dismissible(
       key: Key(note.id),
@@ -345,71 +390,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.red.shade400,
-          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFFEF4444),
+          borderRadius: BorderRadius.circular(NB.cardRadius),
+          border: Border.all(color: NB.borderBlack, width: NB.strokeWidth),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
-            SizedBox(height: 4),
-            Text('Delete', style: TextStyle(color: Colors.white, fontSize: 12)),
+            const Icon(Icons.delete_outline_rounded,
+                color: Colors.white, size: 28),
+            const SizedBox(height: 4),
+            Text('Delete',
+                style: NB.pillCaption().copyWith(color: Colors.white)),
           ],
         ),
       ),
-      confirmDismiss: (direction) async {
-        return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('Delete Note?', style: TextStyle(fontWeight: FontWeight.w700)),
-            content: const Text('This action cannot be undone.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel', style: TextStyle(color: Colors.black54)),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(backgroundColor: Colors.red.shade400),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-        ) ?? false;
-      },
+      confirmDismiss: (_) => _confirmDelete(),
       onDismissed: (_) {
         context.read<NotesProvider>().deleteNote(note.id);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Note deleted'),
-            backgroundColor: Colors.black87,
+            content: Text('Note deleted',
+                style: NB.bodyRegular().copyWith(color: Colors.white)),
+            backgroundColor: NB.textPrimary,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(NB.badgeRadius),
+              side: const BorderSide(
+                  color: NB.borderBlack, width: NB.strokeWidth),
+            ),
           ),
         );
       },
       child: GestureDetector(
         onTap: () {
-          Navigator.push(
-            context,
-            PageRouteBuilder(
-              transitionDuration: const Duration(milliseconds: 400),
-              pageBuilder: (_, _a, _b) => EditorScreen(note: note),
-              transitionsBuilder: (_, animation, _c, child) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.1),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-                    child: child,
-                  ),
-                );
-              },
-            ),
-          );
+          Navigator.push(context, _pageRoute(EditorScreen(note: note)));
         },
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
@@ -419,194 +434,201 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             return Transform.scale(
               scale: value,
               child: Transform.rotate(
-                angle: (index.isEven ? -0.02 : 0.02) * value,
+                angle: angle * value,
                 child: child,
               ),
             );
           },
-          child: Container(
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.black.withValues(alpha: 0.12),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: cardColor.withValues(alpha: 0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Card body
+              Container(
+                decoration: NB.cardDecoration(
+                  color: cardColor,
+                  shadow: NB.shadowResting,
                 ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 4,
-                  offset: const Offset(2, 2),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (note.emoji.isNotEmpty)
-                    Row(
-                      children: [
-                        Text(note.emoji, style: const TextStyle(fontSize: 18)),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            note.title,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: textColor,
-                              height: 1.2,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Text(
-                      note.title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: Text(
-                      note.content,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: subTextColor,
-                        height: 1.4,
-                      ),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      // Title row
+                      if (note.emoji.isNotEmpty)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.calendar_today_rounded, size: 10, color: subTextColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              dateStr,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: subTextColor,
+                            Text(note.emoji,
+                                style: const TextStyle(fontSize: 18)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                note.title,
+                                style: NB.titleMedium(),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
+                        )
+                      else
+                        Text(
+                          note.title,
+                          style: NB.titleMedium(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                      const SizedBox(height: 8),
+                      // Content snippet
+                      Expanded(
+                        child: _buildRichTextPreview(note.content),
                       ),
-                      const Spacer(),
-                      if (note.category != 'All')
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            note.wordCount > 0 ? '${note.wordCount}w' : '',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: subTextColor,
+                      const SizedBox(height: 8),
+                      // Bottom row: timestamp pill
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: NB.cardWhite,
+                              borderRadius:
+                                  BorderRadius.circular(NB.pillRadius),
+                              border: Border.all(
+                                  color: NB.borderBlack,
+                                  width: 1.5),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: NB.borderBlack,
+                                  offset: Offset(2, 2),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.calendar_today_rounded,
+                                    size: 10, color: NB.textMuted),
+                                const SizedBox(width: 4),
+                                Text(
+                                  dateStr,
+                                  style: NB.pillCaption()
+                                      .copyWith(color: NB.textMuted),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
+                          const Spacer(),
+                          if (note.wordCount > 0)
+                            Text(
+                              '${note.wordCount}w',
+                              style: NB.pillCaption()
+                                  .copyWith(color: NB.textMuted),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+              // Corner pin / tape accent (top-right rivet)
+              Positioned(
+                top: -5,
+                right: 12,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: NB.cardWhite,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: NB.borderBlack, width: 2),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFab(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        FloatingActionButton.large(
-          onPressed: () {
-            Navigator.push(
-              context,
-              PageRouteBuilder(
-                transitionDuration: const Duration(milliseconds: 400),
-                pageBuilder: (_, _a, _b) => const EditorScreen(),
-                transitionsBuilder: (_, animation, _c, child) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.3),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-                      child: child,
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-          backgroundColor: const Color(0xFFFF6D00),
-          elevation: 8,
-          shape: const CircleBorder(),
-          child: const Icon(Icons.add_rounded, size: 36, color: Colors.white),
-        ),
-        Positioned(
-          top: -8,
-          right: -4,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2E7D32),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+  Future<bool> _confirmDelete() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: NB.cardWhite,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(NB.cardRadius),
+              side: const BorderSide(
+                  color: NB.borderBlack, width: NB.strokeWidth),
             ),
-            child: const Text(
-              'NEW',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                letterSpacing: 1,
+            title: Text('Delete Note?', style: NB.titleMedium()),
+            content: Text('This action cannot be undone.',
+                style: NB.bodyRegular()),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel',
+                    style: NB.buttonLabel()
+                        .copyWith(color: NB.textMuted)),
               ),
-            ),
+              TactileButton(
+                onTap: () => Navigator.pop(ctx, true),
+                color: const Color(0xFFEF4444),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
+                child: Text('Delete', style: NB.buttonLabel()),
+              ),
+            ],
           ),
+        ) ??
+        false;
+  }
+
+  // ─── FAB ─────────────────────────────────────────────────────────────────
+
+  Widget _buildFab(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, _pageRoute(const EditorScreen()));
+      },
+      child: Container(
+        width: 68,
+        height: 68,
+        decoration: BoxDecoration(
+          color: NB.hotOrange,
+          shape: BoxShape.circle,
+          border:
+              Border.all(color: NB.borderBlack, width: NB.fabStrokeWidth),
+          boxShadow: const [NB.shadowFab],
         ),
-      ],
+        child: const Icon(Icons.add_rounded, size: 42, color: Colors.white),
+      ),
+    );
+  }
+
+  // ─── Shared page route ───────────────────────────────────────────────────
+
+  PageRouteBuilder _pageRoute(Widget page) {
+    return PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 400),
+      reverseTransitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, __, ___) => page,
+      transitionsBuilder: (_, animation, __, child) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.08),
+              end: Offset.zero,
+            ).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }
